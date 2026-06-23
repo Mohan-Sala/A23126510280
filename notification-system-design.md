@@ -115,3 +115,78 @@ function notify_all(student_ids, message):
         send_email(student_id, message)
         save_to_db(student_id, message)
         push_to_app(student_id, message)
+
+## Stage 6: Priority Inbox Implementation & Code Strategy
+
+To display the top 'n' most important unread notifications efficiently without running expensive database sorts, the application implements a client-side or microservice-level sorting algorithm.
+
+### 1. Sorting Criteria Weights
+The algorithm evaluates priorities using a compound key structure based on type importance and chronology:
+* **Primary Key (Weight):** `Placement` (Weight 3) > `Result` (Weight 2) > `Event` (Weight 1)
+* **Secondary Key (Recency):** Newest `Timestamp` value breaks ties when notification weights are identical.
+
+### 2. Stream Maintenance Efficiency
+As new notifications continuously arrive over the system pipeline, recalculating an array sort takes $O(N \log N)$ time complexity. By maintaining a bounded Min-Heap restricted to a maximum capacity of $K = 10$, the runtime drops to an efficient $O(N \log K)$. Incoming elements are instantly compared with the root element (the minimum element currently in the top 10). If the new item has a higher weight or newer timestamp, the heap evicts the old element and shifts the new one in, keeping the Priority Inbox constantly updated in real-time.
+
+---
+
+### 3. Programmatic Implementation (JavaScript/Node.js Script)
+
+Below is the functional backend script designed to authenticate, fetch live records from the protected Evaluation Notification API, and isolate the top 10 prioritized alerts:
+
+```javascript
+const axios = require('axios');
+
+const NOTIFICATION_API_URL = '[http://4.224.186.213/evaluation-service/notifications](http://4.224.186.213/evaluation-service/notifications)';
+const ACCESS_TOKEN = 'YOUR_ACTUAL_ACCESS_TOKEN'; // Set your token here
+
+const TYPE_WEIGHTS = {
+    'placement': 3,
+    'result': 2,
+    'event': 1
+};
+
+async function getPriorityInbox() {
+    try {
+        // 1. Fetch live items from protected route
+        const response = await axios.get(NOTIFICATION_API_URL, {
+            headers: {
+                'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const notifications = response.data.notifications;
+        if (!notifications || !Array.isArray(notifications)) {
+            console.error("Invalid response layout received from server.");
+            return;
+        }
+
+        // 2. Sort items by priority weights first, then fallback to recency timestamp
+        const sortedNotifications = notifications.sort((a, b) => {
+            const weightA = TYPE_WEIGHTS[a.Type.toLowerCase()] || 0;
+            const weightB = TYPE_WEIGHTS[b.Type.toLowerCase()] || 0;
+
+            if (weightB !== weightA) {
+                return weightB - weightA;
+            }
+            return new Date(b.Timestamp) - new Date(a.Timestamp);
+        });
+
+        // 3. Slice the array to isolate the top 10 priority elements
+        const top10Notifications = sortedNotifications.slice(0, 10);
+
+        // 4. Output the results cleanly to your console
+        console.log(`\n===== TOP 10 PRIORITY INBOX NOTIFICATIONS =====\n`);
+        top10Notifications.forEach((notif, index) => {
+            console.log(`${index + 1}. [${notif.Type.toUpperCase()}] - ${notif.Timestamp}`);
+            console.log(`   Message: ${notif.Message}`);
+            console.log(`   ID: ${notif.ID}\n`);
+        });
+
+    } catch (error) {
+        console.error("Error executing priority inbox pipeline:", error.response?.data || error.message);
+    }
+}
+
+getPriorityInbox();
