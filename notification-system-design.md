@@ -82,3 +82,22 @@ This section addresses performance vulnerabilities when executing status-specifi
 The target query is structured as follows:
 ```sql
 SELECT * FROM notifications WHERE studentID = 1042 AND isRead = false ORDER BY createdAt DESC;
+
+## Stage 4: High-Performance Cache Blueprint
+
+To prevent high application traffic from degrading core database availability on every dashboard page load, an active caching layer is positioned between the client requests and the database using **Redis**.
+
+### 1. Strategy Comparison & Trade-off Matrix
+
+| Cache Strategy | Core Pros | Core Cons | Practical Use-case |
+| :--- | :--- | :--- | :--- |
+| **Cache-Aside** (Lazy Loading) | Memory optimized; data is only cached upon direct user demand. Safe against system crashes. | Cache-miss penalty on the first request; requires careful data eviction logic. | Ideal for erratic dashboard requests and personalized notification feeds. |
+| **Write-Through** (Pre-Caching) | Extremely fast read paths; data is guaranteed to be warm and ready in RAM. | High memory footprint; saves unnecessary records for inactive or dormant users. | Ideal for static structural configurations or premium system assets. |
+
+### 2. Architectural Recommendation & Flow
+We implement the **Cache-Aside strategy with strategic invalidation** to manage student dashboards:
+
+1. **Check Cache:** When a student requests their notification feed, the backend system interrogates the high-speed Redis cluster first.
+2. **Cache Hit:** If the data exists in Redis, the data is instantly sent back to the user in sub-milliseconds. The database is never touched.
+3. **Cache Miss:** If the data is not in Redis, the backend executes our optimized Stage 3 database query, returns the data to the user, and immediately saves a copy inside Redis with a Time-To-Live (TTL) of 1 hour.
+4. **Data Invalidation:** The moment an administrator creates a new notification, the system writes to the database and immediately purges (deletes) that student's old cache entry in Redis to prevent displaying stale information.
