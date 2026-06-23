@@ -71,3 +71,14 @@ CREATE TABLE notifications (
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+---
+
+## Stage 3: Database Query Optimization
+
+This section addresses performance vulnerabilities when executing status-specific lookups against large datasets (5,000,000+ records).
+
+### 1. Performance Diagnostics: Why the Current Query is Slow
+The target query is structured as follows:
+```sql
+SELECT * FROM notifications WHERE studentID = 1042 AND isRead = false ORDER BY createdAt DESC;
