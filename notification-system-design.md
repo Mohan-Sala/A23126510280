@@ -42,3 +42,32 @@ All endpoints are protected routes requiring a valid bearer credential appended 
     }
   ]
 }
+
+## Stage 2: Database Schema & Scaling Strategy
+
+This stage outlines the persistent storage layout designed to process, index, and query massive volumes of student notification data without bottlenecking transaction throughput.
+
+### 1. Database Engine Recommendation
+
+We select **PostgreSQL** (a Relational Database Management System - RDBMS) as our primary persistent data store for the following structural reasons:
+* **Strong ACID Compliance:** Ensures that when an admin sends a notification, it is either successfully delivered to everyone or rolled back completely—preventing partial or corrupt database states.
+* **Complex Data Join Capabilities:** Relational databases allow us to cleanly join the `notifications` records with distinct `students` and `depots/departments` tables without duplicating raw user profiles across millions of rows.
+* **Support for Advanced Indexing:** PostgreSQL natively provides optimized B-Tree and composite indexing models that allow for lightning-fast reading paths when searching through millions of old notices.
+
+---
+
+### 2. Database Schema Design
+
+Below is the optimized SQL Schema structure mapping out the primary tracking properties:
+
+```sql
+-- Core Table tracking generated campus notifications
+CREATE TABLE notifications (
+    id VARCHAR(50) PRIMARY KEY,
+    student_id VARCHAR(50) NOT NULL,
+    notification_type VARCHAR(20) NOT NULL, -- 'placement', 'result', 'event'
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
