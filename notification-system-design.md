@@ -101,3 +101,17 @@ We implement the **Cache-Aside strategy with strategic invalidation** to manage 
 2. **Cache Hit:** If the data exists in Redis, the data is instantly sent back to the user in sub-milliseconds. The database is never touched.
 3. **Cache Miss:** If the data is not in Redis, the backend executes our optimized Stage 3 database query, returns the data to the user, and immediately saves a copy inside Redis with a Time-To-Live (TTL) of 1 hour.
 4. **Data Invalidation:** The moment an administrator creates a new notification, the system writes to the database and immediately purges (deletes) that student's old cache entry in Redis to prevent displaying stale information.
+
+## Stage 5: System Redesign for Bulk Operations
+
+This section evaluates the structural vulnerabilities of synchronous loops during high-volume data distributions and designs an asynchronous message-broker alternative.
+
+### 1. Architectural Vulnerabilities of the Provided Synchronous Pseudocode
+The initial implementation utilizes a blocking `for` loop to iterate sequentially through 50,000 student records:
+
+```python
+function notify_all(student_ids, message):
+    for student_id in student_ids:
+        send_email(student_id, message)
+        save_to_db(student_id, message)
+        push_to_app(student_id, message)
